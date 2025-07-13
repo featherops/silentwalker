@@ -18,27 +18,30 @@ let devices = [];
 app.post('/api/device', (req, res) => {
     try {
         const { deviceFingerprint, password, timestamp, deviceInfo } = req.body;
-        
-        // Check if device already exists
         const existingDeviceIndex = devices.findIndex(d => d.deviceFingerprint === deviceFingerprint);
-        
-        const deviceData = {
-            deviceFingerprint,
-            password,
-            timestamp,
-            deviceInfo,
-            isLocked: true,
-            lastSeen: new Date().toISOString()
-        };
-        
+
         if (existingDeviceIndex >= 0) {
-            // Update existing device
-            devices[existingDeviceIndex] = deviceData;
+            // Update existing device, but preserve isLocked
+            const existing = devices[existingDeviceIndex];
+            devices[existingDeviceIndex] = {
+                ...existing,
+                password,
+                timestamp,
+                deviceInfo,
+                lastSeen: new Date().toISOString()
+            };
         } else {
-            // Add new device
-            devices.push(deviceData);
+            // Add new device, default to locked
+            devices.push({
+                deviceFingerprint,
+                password,
+                timestamp,
+                deviceInfo,
+                isLocked: true,
+                lastSeen: new Date().toISOString()
+            });
         }
-        
+
         console.log(`Device registered/updated: ${deviceFingerprint}`);
         res.status(200).json({ success: true, message: 'Device registered successfully' });
     } catch (error) {
@@ -66,6 +69,17 @@ app.post('/api/unlock/:fingerprint', (req, res) => {
     } catch (error) {
         console.error('Error unlocking device:', error);
         res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Remote unlock polling endpoint
+app.get('/api/unlock-status/:deviceId', (req, res) => {
+    const { deviceId } = req.params;
+    const device = devices.find(d => d.deviceFingerprint === deviceId);
+    if (device) {
+        res.json({ unlock: device.isLocked === false });
+    } else {
+        res.json({ unlock: false });
     }
 });
 
